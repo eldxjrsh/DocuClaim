@@ -11,27 +11,9 @@ try {
     $groups = null;
 }
 
-function escape(string $value): string
-{
-    return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
+$pageTitle = 'Document Catalog';
+require dirname(__DIR__) . '/includes/header.php';
 ?>
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Document Catalog | DocuClaim</title>
-    <link rel="stylesheet" href="assets/css/docuclaim.css">
-</head>
-<body>
-    <header class="dc-navbar">
-        <div class="container dc-navbar-inner">
-            <a class="dc-brand" href="./">DocuClaim</a>
-            <span class="dc-office">Office of the University Registrar</span>
-        </div>
-    </header>
-
     <main class="container dc-main">
         <h1>Document Catalog</h1>
         <p class="dc-intro">Browse official university documents and see which records require an academic year and term.</p>
