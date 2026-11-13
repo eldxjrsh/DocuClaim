@@ -1,0 +1,135 @@
+/* DocuClaim catalog styles */
+
+:root {
+    --dc-navy: #0f2942;
+    --dc-navy-light: #163a5f;
+    --dc-blue-hover: #1e40af;
+    --dc-bg: #f6f9fc;
+    --dc-surface: #ffffff;
+    --dc-text-main: #0f172a;
+    --dc-text-muted: #64748b;
+    --dc-border: #e2e8f0;
+    --dc-radius-lg: 14px;
+    --dc-shadow-sm: 0 2px 8px rgb(15 41 66 / 4%);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background-color: var(--dc-bg);
+    color: var(--dc-text-main);
+    font-family: "Segoe UI", Roboto, system-ui, sans-serif;
+    line-height: 1.6;
+}
+
+.container {
+    width: min(66rem, calc(100% - 2.5rem));
+    margin-inline: auto;
+}
+
+.dc-navbar {
+    padding-block: 0.85rem;
+    background: linear-gradient(135deg, var(--dc-navy), var(--dc-navy-light));
+}
+
+.dc-navbar-inner {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+}
+
+.dc-brand {
+    color: var(--dc-surface);
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.dc-office {
+    color: #dbeafe;
+    font-size: 0.875rem;
+}
+
+.dc-main {
+    padding-block: clamp(2rem, 6vw, 4.5rem);
+}
+
+h1,
+h2,
+h3,
+p {
+    margin: 0;
+}
+
+h1 {
+    color: var(--dc-navy);
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+}
+
+.dc-intro {
+    margin-block: 0.75rem 2rem;
+    color: var(--dc-text-muted);
+}
+
+.dc-catalog {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.dc-card {
+    padding: clamp(1.125rem, 4vw, 1.75rem);
+    border: 1px solid var(--dc-border);
+    border-radius: var(--dc-radius-lg);
+    background-color: var(--dc-surface);
+    box-shadow: var(--dc-shadow-sm);
+}
+
+.dc-card h2 {
+    color: var(--dc-navy);
+    font-size: 1.25rem;
+    line-height: 1.35;
+}
+
+.dc-requirements {
+    margin-top: 0.375rem;
+    color: var(--dc-blue-hover);
+    font-size: 0.875rem;
+}
+
+.dc-documents {
+    margin: 1.25rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dc-documents li {
+    border-top: 1px solid var(--dc-border);
+    padding-block: 1rem;
+}
+
+.dc-documents li:last-child {
+    padding-bottom: 0;
+}
+
+.dc-documents h3 {
+    font-size: 1rem;
+}
+
+.dc-documents p {
+    margin-top: 0.25rem;
+    color: var(--dc-text-muted);
+    font-size: 0.9375rem;
+}
+
+@media (max-width: 44rem) {
+    .dc-catalog {
+        grid-template-columns: 1fr;
+    }
+}
