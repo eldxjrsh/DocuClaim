@@ -154,21 +154,21 @@ h1 {
     text-underline-offset: 0.25em;
 }
 
-.dc-registration {
+.dc-account-form {
     display: grid;
     gap: 0.45rem;
     max-width: 34rem;
 }
 
-h1 + .dc-registration {
+h1 + .dc-account-form {
     margin-top: 1.5rem;
 }
 
-.dc-registration label {
+.dc-account-form label {
     font-weight: 600;
 }
 
-.dc-registration input:not([type="hidden"]) {
+.dc-account-form input:not([type="hidden"]) {
     width: 100%;
     min-width: 0;
     margin-bottom: 0.55rem;
@@ -203,7 +203,7 @@ h1 + .dc-registration {
     font-size: 0.875rem;
 }
 
-.dc-registration button {
+.dc-account-form button {
     justify-self: start;
     padding: 0.55rem 1.2rem;
     border: 0;
@@ -215,7 +215,7 @@ h1 + .dc-registration {
     font-weight: 600;
 }
 
-.dc-registration button:hover {
+.dc-account-form button:hover {
     background: var(--dc-blue-hover);
 }
 
@@ -223,5 +223,17 @@ h1 + .dc-registration {
     .dc-nav {
         flex-basis: 100%;
         margin-inline-start: 0;
+    }
+}
+
+.dc-account-form + .dc-account-form,
+.dc-form-error + .dc-account-form {
+    margin-top: 1rem;
+}
+
+@media print {
+    .dc-navbar,
+    .dc-no-print {
+        display: none;
     }
 }

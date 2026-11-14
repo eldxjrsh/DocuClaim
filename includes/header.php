@@ -21,7 +21,12 @@ function escape(string $value): string
             <span class="dc-office">Office of the University Registrar</span>
             <nav class="dc-nav" aria-label="Main navigation">
                 <a href="./"<?= $pageTitle === 'Document Catalog' ? ' aria-current="page"' : '' ?>>Catalog</a>
-                <a href="register.php"<?= $pageTitle === 'Student Registration' ? ' aria-current="page"' : '' ?>>Student Registration</a>
+                <?php if (isset($_SESSION['user_id'])): ?>
+                    <a href="account.php"<?= $pageTitle === 'Account' ? ' aria-current="page"' : '' ?>>Account</a>
+                <?php else: ?>
+                    <a href="register.php"<?= $pageTitle === 'Student Registration' ? ' aria-current="page"' : '' ?>>Student Registration</a>
+                    <a href="login.php"<?= $pageTitle === 'Sign In' ? ' aria-current="page"' : '' ?>>Sign In</a>
+                <?php endif; ?>
             </nav>
         </div>
     </header>

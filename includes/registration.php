@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/password.php';
 
 function registerStudent(array $details, string $password, string $confirmation): ?string
 {
@@ -16,7 +17,7 @@ function registerStudent(array $details, string $password, string $confirmation)
         return 'Enter your first and last names. Each name can contain up to 100 characters.';
     }
 
-    if (strlen($password) > 72 || !preg_match('/\A[^\x00]{8,}\z/u', $password)) {
+    if (!validPassword($password)) {
         return 'Use a password with at least 8 characters and no more than 72 bytes.';
     }
     if ($password !== $confirmation) {
@@ -36,7 +37,7 @@ function registerStudent(array $details, string $password, string $confirmation)
             ':first_name' => $details['first_name'],
             ':middle_name' => $details['middle_name'] !== '' ? $details['middle_name'] : null,
             ':last_name' => $details['last_name'],
-            ':password_hash' => password_hash($password, defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT),
+            ':password_hash' => hashPassword($password),
         ]);
     } catch (PDOException $exception) {
         if (($exception->errorInfo[1] ?? null) === 1062) {

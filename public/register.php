@@ -3,23 +3,12 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/registration.php';
 
-ini_set('session.use_only_cookies', '1');
-ini_set('session.use_strict_mode', '1');
-session_name('DOCUCLAIM_SESSID');
-session_set_cookie_params([
-    'httponly' => true,
-    'samesite' => 'Lax',
-    'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
-]);
-session_start();
+require_once dirname(__DIR__) . '/includes/session.php';
 
-function postValue(string $name): string
-{
-    $value = $_POST[$name] ?? '';
-    return is_string($value) ? $value : '';
+if (isset($_SESSION['user_id'])) {
+    redirectTo('account.php');
 }
 
-$csrfToken = $_SESSION['registration_csrf'] ??= bin2hex(random_bytes(32));
 $registered = $_SESSION['registration_complete'] ?? false;
 unset($_SESSION['registration_complete']);
 
@@ -33,7 +22,7 @@ $error = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $registered = false;
-    if (!hash_equals($csrfToken, postValue('csrf_token'))) {
+    if (!validCsrfToken()) {
         http_response_code(403);
         $error = 'The form expired. Please enter your password and submit it again.';
     } else {
@@ -41,8 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = registerStudent($details, postValue('password'), postValue('confirm_password'));
             if ($error === null) {
                 $_SESSION['registration_complete'] = true;
-                header('Location: register.php', true, 303);
-                exit;
+                redirectTo('register.php');
             }
             http_response_code(422);
         } catch (RuntimeException $exception) {
@@ -59,20 +47,20 @@ require dirname(__DIR__) . '/includes/header.php';
     <main class="container dc-main">
         <h1>Student Registration</h1>
         <?php if ($registered): ?>
-            <div class="dc-card dc-registration" role="status">
+            <div class="dc-card dc-account-form" role="status">
                 <h2>Registration received</h2>
                 <p>Bring your university ID to the Registrar for in-person verification and an activation slip.</p>
-                <a href="./">Browse the document catalog</a>
+                <a href="login.php">Sign in to your account</a>
             </div>
         <?php else: ?>
             <p class="dc-intro">Register with your official student number. The Registrar verifies your identity before activating your account.</p>
 
-            <form class="dc-card dc-registration" method="post" action="register.php">
+            <form class="dc-card dc-account-form" method="post" action="register.php">
                 <?php if ($error !== null): ?>
                     <p class="dc-form-error" role="alert"><?= escape($error) ?></p>
                 <?php endif; ?>
 
-                <input type="hidden" name="csrf_token" value="<?= escape($csrfToken) ?>">
+                <input type="hidden" name="csrf_token" value="<?= escape(csrfToken()) ?>">
 
                 <label for="student_number">Official student number</label>
                 <input id="student_number" name="student_number" value="<?= escape($details['student_number']) ?>"
@@ -105,6 +93,7 @@ require dirname(__DIR__) . '/includes/header.php';
                        minlength="8" maxlength="72" required>
 
                 <button type="submit">Register</button>
+                <p>Already registered? <a href="login.php">Sign in</a></p>
             </form>
         <?php endif; ?>
     </main>
