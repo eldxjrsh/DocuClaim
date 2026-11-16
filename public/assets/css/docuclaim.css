@@ -168,7 +168,9 @@ h1 + .dc-account-form {
     font-weight: 600;
 }
 
-.dc-account-form input:not([type="hidden"]) {
+.dc-account-form input:not([type="hidden"]),
+.dc-account-form select,
+.dc-account-form textarea {
     width: 100%;
     min-width: 0;
     margin-bottom: 0.55rem;
@@ -235,5 +237,96 @@ h1 + .dc-account-form {
     .dc-navbar,
     .dc-no-print {
         display: none;
+    }
+}
+
+.dc-account-form textarea {
+    resize: vertical;
+}
+
+.dc-request-layout {
+    display: grid;
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+}
+
+.dc-request-layout-student {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+}
+
+.dc-request-list {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.dc-request-filter,
+.dc-request-card .dc-account-form {
+    max-width: none;
+}
+
+.dc-request-hint {
+    margin-top: 0;
+}
+
+#request-feedback > p {
+    margin-top: 1rem;
+}
+
+.dc-request-notice {
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.dc-request-card {
+    display: grid;
+    gap: 0.5rem;
+    overflow-wrap: anywhere;
+}
+
+.dc-request-card header,
+.dc-request-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.5rem 1rem;
+}
+
+.dc-request-card header {
+    justify-content: space-between;
+}
+
+.dc-request-meta {
+    color: var(--dc-text-muted);
+    font-size: 0.875rem;
+}
+
+.dc-request-card form {
+    margin-top: 0.4rem;
+}
+
+.dc-request-status {
+    padding: 0.2rem 0.55rem;
+    border-radius: 0.375rem;
+    background: #eff6ff;
+    color: var(--dc-blue-hover);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.dc-account-form .dc-secondary-button {
+    border: 1px solid #991b1b;
+    background: var(--dc-surface);
+    color: #991b1b;
+}
+
+.dc-account-form .dc-secondary-button:hover {
+    background: #fef2f2;
+}
+
+@media (max-width: 52rem) {
+    .dc-request-layout-student {
+        grid-template-columns: minmax(0, 1fr);
     }
 }

@@ -77,6 +77,10 @@ require dirname(__DIR__) . '/includes/header.php';
                     <p role="status">Your student account is active.</p>
                 <?php endif; ?>
 
+                <?php if ($staff || !$pending): ?>
+                    <p><a href="requests.php"><?= $staff ? 'Open the request queue' : 'View my document requests' ?></a></p>
+                <?php endif; ?>
+
                 <form method="post" action="logout.php">
                     <input type="hidden" name="csrf_token" value="<?= escape(csrfToken()) ?>">
                     <button type="submit">Sign Out</button>
