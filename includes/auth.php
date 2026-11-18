@@ -76,7 +76,7 @@ function canSignIn(array $user): bool
     return match ($user['role_slug']) {
         'student' => $user['account_status'] === 'Pending Activation'
             || ($user['account_status'] === 'Active' && (bool) $user['is_activated']),
-        'staff' => $user['account_status'] === 'Active' && (bool) $user['is_activated'],
+        'staff', 'admin' => $user['account_status'] === 'Active' && (bool) $user['is_activated'],
         default => false,
     };
 }

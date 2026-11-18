@@ -38,9 +38,13 @@ try {
         $_SESSION = [];
         redirectTo('login.php');
     }
+    if ($user['role_slug'] === 'admin') {
+        redirectTo('pickups.php');
+    }
+
     $userId = (int) $user['user_id'];
     $staff = $user['role_slug'] === 'staff';
-    $canRequest = !$staff && $user['account_status'] === 'Active' && (bool) $user['is_activated'];
+    $canRequest = $user['role_slug'] === 'student' && $user['account_status'] === 'Active' && (bool) $user['is_activated'];
 
     if ($canRequest) {
         $groups = getDocumentCatalog($db);

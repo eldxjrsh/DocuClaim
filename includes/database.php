@@ -9,7 +9,7 @@ function connectDatabase(): PDO
     $user = getenv('DB_USER') ?: 'root';
     $password = getenv('DB_PASS');
 
-    return new PDO(
+    $connection = new PDO(
         "mysql:host=$host;port=$port;dbname=$database;charset=utf8mb4",
         $user,
         $password === false ? '' : $password,
@@ -19,4 +19,6 @@ function connectDatabase(): PDO
             PDO::ATTR_EMULATE_PREPARES => false,
         ]
     );
+    $connection->exec("SET time_zone = '+08:00'");
+    return $connection;
 }

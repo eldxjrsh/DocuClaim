@@ -23,6 +23,7 @@ function escape(string $value): string
                 <a href="./"<?= $pageTitle === 'Document Catalog' ? ' aria-current="page"' : '' ?>>Catalog</a>
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <a href="account.php"<?= $pageTitle === 'Account' ? ' aria-current="page"' : '' ?>>Account</a>
+                    <a href="pickups.php"<?= in_array($pageTitle, ['Pickup Windows', 'Pickup Visits', 'My Pickups'], true) ? ' aria-current="page"' : '' ?>>Pickups</a>
                 <?php else: ?>
                     <a href="register.php"<?= $pageTitle === 'Student Registration' ? ' aria-current="page"' : '' ?>>Student Registration</a>
                     <a href="login.php"<?= $pageTitle === 'Sign In' ? ' aria-current="page"' : '' ?>>Sign In</a>

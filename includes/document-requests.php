@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/pickups.php';
+
 const REQUEST_TERMS = ['1st Semester', '2nd Semester', 'Midyear'];
 
 const REQUEST_NEXT_STATUS = [
@@ -94,50 +96,63 @@ function cancelStudentRequest(PDO $db, int $studentId, string $reference): void
 
 function reviewDocumentRequest(PDO $db, int $staffId, string $reference, string $expected, string $action, string $reason): void
 {
-    $next = match ($action) {
-        'advance' => REQUEST_NEXT_STATUS[$expected] ?? null,
-        'decline' => match ($expected) {
-            'Pending Review' => 'Rejected',
-            'Approved', 'Processing', 'Ready for Pickup' => 'Cancelled',
+    pickupTransaction($db, function () use ($db, $staffId, $reference, $expected, $action, $reason): void {
+        $lookup = $db->prepare('SELECT student_user_id FROM document_requests WHERE reference_no = :reference');
+        $lookup->execute(['reference' => $reference]);
+        $studentId = $lookup->fetchColumn();
+        if ($studentId === false) {
+            throw new DomainException('The request is unavailable.');
+        }
+        lockPickupStudent($db, (int) $studentId);
+        lockStudentPickupWindows($db, (int) $studentId);
+        $next = match ($action) {
+            'advance' => REQUEST_NEXT_STATUS[$expected] ?? null,
+            'decline' => match ($expected) {
+                'Pending Review' => 'Rejected',
+                'Approved', 'Processing', 'Ready for Pickup' => 'Cancelled',
+                default => null,
+            },
             default => null,
-        },
-        default => null,
-    };
-    if ($next === null) {
-        throw new DomainException('That status change is unavailable.');
-    }
+        };
+        if ($next === null) {
+            throw new DomainException('That status change is unavailable.');
+        }
 
-    if ($action === 'decline' && !preg_match('/\A.{1,1000}\z/us', $reason)) {
-        throw new DomainException('Enter a reason of up to 1,000 characters.');
-    }
+        if ($action === 'decline' && !preg_match('/\A.{1,1000}\z/us', $reason)) {
+            throw new DomainException('Enter a reason of up to 1,000 characters.');
+        }
 
-    $timestamp = match ($next) {
-        'Approved' => ', dr.approved_at = NOW()',
-        'Processing' => ', dr.processing_at = NOW()',
-        'Ready for Pickup' => ', dr.ready_at = NOW()',
-        default => '',
-    };
+        $timestamp = match ($next) {
+            'Approved' => ', dr.approved_at = NOW()',
+            'Processing' => ', dr.processing_at = NOW()',
+            'Ready for Pickup' => ', dr.ready_at = NOW()',
+            default => '',
+        };
 
-    $update = $db->prepare(
-        "UPDATE document_requests dr
-         JOIN users u ON u.user_id = :staff
-         JOIN roles r ON r.role_id = u.role_id
-         SET dr.status = :next, dr.handled_by_staff_id = u.user_id,
-             dr.status_reason = :reason, dr.cancelled_by_role = :cancelled_by $timestamp
-         WHERE dr.reference_no = :reference AND dr.status = :expected
-           AND r.role_slug = 'staff' AND u.account_status = 'Active' AND u.is_activated = 1"
-    );
-    $update->execute([
-        'staff' => $staffId,
-        'next' => $next,
-        'reason' => $action === 'decline' ? $reason : null,
-        'cancelled_by' => $next === 'Cancelled' ? 'Registrar Staff' : null,
-        'reference' => $reference,
-        'expected' => $expected,
-    ]);
-    if ($update->rowCount() !== 1) {
-        throw new DomainException('The request has changed or is unavailable. Review its current status and try again.');
-    }
+        $update = $db->prepare(
+            "UPDATE document_requests dr
+             JOIN users u ON u.user_id = :staff
+             JOIN roles r ON r.role_id = u.role_id
+             SET dr.status = :next, dr.handled_by_staff_id = u.user_id,
+                 dr.status_reason = :reason, dr.cancelled_by_role = :cancelled_by $timestamp
+             WHERE dr.reference_no = :reference AND dr.status = :expected
+               AND r.role_slug = 'staff' AND u.account_status = 'Active' AND u.is_activated = 1"
+        );
+        $update->execute([
+            'staff' => $staffId,
+            'next' => $next,
+            'reason' => $action === 'decline' ? $reason : null,
+            'cancelled_by' => $next === 'Cancelled' ? 'Registrar Staff' : null,
+            'reference' => $reference,
+            'expected' => $expected,
+        ]);
+        if ($update->rowCount() !== 1) {
+            throw new DomainException('The request has changed or is unavailable. Review its current status and try again.');
+        }
+        if ($next === 'Cancelled') {
+            detachCancelledPickupRequest($db, $reference);
+        }
+    });
 }
 
 function listDocumentRequests(PDO $db, ?int $studentId, string $status, string $search, int $page): array

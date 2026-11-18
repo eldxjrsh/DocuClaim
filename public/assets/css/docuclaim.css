@@ -330,3 +330,42 @@ h1 + .dc-account-form {
         grid-template-columns: minmax(0, 1fr);
     }
 }
+
+.dc-pickup-documents {
+    display: grid;
+    gap: 0.65rem;
+    min-width: 0;
+    margin: 0.5rem 0;
+    padding: 0;
+    border: 0;
+}
+
+.dc-pickup-documents legend {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.dc-pickup-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    overflow-wrap: anywhere;
+}
+
+.dc-account-form input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    accent-color: #1d4ed8;
+}
+
+.dc-pickup-document-list {
+    margin: 0;
+    padding-inline-start: 1.25rem;
+}
+
+#pickup-feedback > p {
+    margin-top: 1rem;
+}

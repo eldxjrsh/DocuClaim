@@ -22,6 +22,10 @@ try {
         redirectTo('login.php');
     }
 
+    if ($user['role_slug'] === 'admin') {
+        redirectTo('pickups.php');
+    }
+
     $staff = $user['role_slug'] === 'staff';
     $pending = !$staff && $user['account_status'] === 'Pending Activation';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -79,6 +83,7 @@ require dirname(__DIR__) . '/includes/header.php';
 
                 <?php if ($staff || !$pending): ?>
                     <p><a href="requests.php"><?= $staff ? 'Open the request queue' : 'View my document requests' ?></a></p>
+                    <p><a href="pickups.php"><?= $staff ? 'Open pickup visits' : 'Book or view my pickups' ?></a></p>
                 <?php endif; ?>
 
                 <form method="post" action="logout.php">
