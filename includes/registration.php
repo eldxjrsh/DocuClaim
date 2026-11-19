@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/password.php';
+require_once __DIR__ . '/activity.php';
 
 function registerStudent(array $details, string $password, string $confirmation): ?string
 {
@@ -24,31 +25,35 @@ function registerStudent(array $details, string $password, string $confirmation)
         return 'Passwords do not match.';
     }
 
-    $statement = connectDatabase()->prepare(
-        "INSERT INTO users (role_id, identifier_number, first_name, middle_name, last_name, password_hash)
-         SELECT role_id, :identifier, :first_name, :middle_name, :last_name, :password_hash
-         FROM roles
-         WHERE role_slug = 'student'"
-    );
+    $db = connectDatabase();
+    return databaseTransaction($db, function () use ($db, $details, $password): ?string {
+        $statement = $db->prepare(
+            "INSERT INTO users (role_id, identifier_number, first_name, middle_name, last_name, password_hash)
+             SELECT role_id, :identifier, :first_name, :middle_name, :last_name, :password_hash
+             FROM roles
+             WHERE role_slug = 'student'"
+        );
 
-    try {
-        $statement->execute([
-            ':identifier' => $details['student_number'],
-            ':first_name' => $details['first_name'],
-            ':middle_name' => $details['middle_name'] !== '' ? $details['middle_name'] : null,
-            ':last_name' => $details['last_name'],
-            ':password_hash' => hashPassword($password),
-        ]);
-    } catch (PDOException $exception) {
-        if (($exception->errorInfo[1] ?? null) === 1062) {
-            return 'An account with this student number is already registered.';
+        try {
+            $statement->execute([
+                ':identifier' => $details['student_number'],
+                ':first_name' => $details['first_name'],
+                ':middle_name' => $details['middle_name'] !== '' ? $details['middle_name'] : null,
+                ':last_name' => $details['last_name'],
+                ':password_hash' => hashPassword($password),
+            ]);
+        } catch (PDOException $exception) {
+            if (($exception->errorInfo[1] ?? null) === 1062) {
+                return 'An account with this student number is already registered.';
+            }
+            throw $exception;
         }
-        throw $exception;
-    }
 
-    if ($statement->rowCount() !== 1) {
-        throw new RuntimeException('The student role is missing.');
-    }
+        if ($statement->rowCount() !== 1) {
+            throw new RuntimeException('The student role is missing.');
+        }
 
-    return null;
+        recordActivity($db, (int) $db->lastInsertId(), 'STUDENT_REGISTERED', $details['student_number']);
+        return null;
+    });
 }

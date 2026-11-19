@@ -1,23 +1,10 @@
 <?php
 declare(strict_types=1);
 
-const PICKUP_STATUSES = ['Scheduled', 'Completed', 'Missed', 'Cancelled'];
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/activity.php';
 
-function pickupTransaction(PDO $db, callable $operation): mixed
-{
-    $db->exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
-    $db->beginTransaction();
-    try {
-        $result = $operation();
-        $db->commit();
-        return $result;
-    } catch (Throwable $exception) {
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
-        throw $exception;
-    }
-}
+const PICKUP_STATUSES = ['Scheduled', 'Completed', 'Missed', 'Cancelled'];
 
 function lockPickupStudent(PDO $db, int $studentId): void
 {
@@ -80,18 +67,21 @@ function createPickupWindow(PDO $db, int $adminId, string $date, string $start, 
         throw new DomainException('Capacity must be between 1 and 1,000 visits.');
     }
     requireActivePickupActor($db, $adminId, 'admin');
-    $insert = $db->prepare(
-        'INSERT INTO pickup_windows (pickup_date, start_time, end_time, max_capacity, created_by_admin_id)
-         VALUES (:date, :start, :end, :capacity, :admin)'
-    );
-    try {
-        $insert->execute(['date' => $date, 'start' => $start, 'end' => $end, 'capacity' => $capacityValue, 'admin' => $adminId]);
-    } catch (PDOException $exception) {
-        if (($exception->errorInfo[1] ?? null) === 1062) {
-            throw new DomainException('A pickup window with these times already exists.');
+    databaseTransaction($db, function () use ($db, $adminId, $date, $start, $end, $capacityValue): void {
+        $insert = $db->prepare(
+            'INSERT INTO pickup_windows (pickup_date, start_time, end_time, max_capacity, created_by_admin_id)
+             VALUES (:date, :start, :end, :capacity, :admin)'
+        );
+        try {
+            $insert->execute(['date' => $date, 'start' => $start, 'end' => $end, 'capacity' => $capacityValue, 'admin' => $adminId]);
+        } catch (PDOException $exception) {
+            if (($exception->errorInfo[1] ?? null) === 1062) {
+                throw new DomainException('A pickup window with these times already exists.');
+            }
+            throw $exception;
         }
-        throw $exception;
-    }
+        recordActivity($db, $adminId, 'PICKUP_WINDOW_CREATED', $db->lastInsertId(), ['date' => $date, 'start' => $start, 'end' => $end, 'capacity' => $capacityValue]);
+    });
 }
 
 function expirePickupAppointments(PDO $db): void
@@ -102,7 +92,7 @@ function expirePickupAppointments(PDO $db): void
          WHERE pa.appointment_status = 'Scheduled' AND TIMESTAMP(pw.pickup_date, pw.end_time) <= NOW()"
     )->fetchAll(PDO::FETCH_COLUMN);
     foreach ($students as $studentId) {
-        pickupTransaction($db, function () use ($db, $studentId): void {
+        databaseTransaction($db, function () use ($db, $studentId): void {
             lockPickupStudent($db, (int) $studentId);
             lockStudentPickupWindows($db, (int) $studentId);
             $documents = $db->prepare(
@@ -121,6 +111,9 @@ function expirePickupAppointments(PDO $db): void
                    AND TIMESTAMP(pw.pickup_date, pw.end_time) <= NOW()"
             );
             $visits->execute(['student' => $studentId]);
+            if ($visits->rowCount() > 0) {
+                recordActivity($db, null, 'APPOINTMENTS_MARKED_MISSED', $studentId, ['visits' => $visits->rowCount()]);
+            }
         });
     }
 }
@@ -153,7 +146,7 @@ function getReadyPickupDocuments(PDO $db, int $studentId): array
 
 function bookPickup(PDO $db, int $studentId, int $windowId, array $requestIds): string
 {
-    return pickupTransaction($db, function () use ($db, $studentId, $windowId, $requestIds): string {
+    return databaseTransaction($db, function () use ($db, $studentId, $windowId, $requestIds): string {
         lockPickupStudent($db, $studentId);
         lockStudentPickupWindows($db, $studentId, $windowId);
         requireActivePickupActor($db, $studentId, 'student');
@@ -175,6 +168,7 @@ function bookPickup(PDO $db, int $studentId, int $windowId, array $requestIds): 
         foreach ($requestIds as $requestId) {
             $attach->execute(['appointment' => $appointmentId, 'request' => $requestId]);
         }
+        recordActivity($db, $studentId, 'APPOINTMENT_BOOKED', $reference, ['window' => $windowId, 'documents' => count($requestIds)]);
         return $reference;
     });
 }
@@ -202,7 +196,7 @@ function lockAvailablePickupWindow(PDO $db, int $windowId): void
 
 function changeStudentPickup(PDO $db, int $studentId, string $reference, ?int $windowId): void
 {
-    pickupTransaction($db, function () use ($db, $studentId, $reference, $windowId): void {
+    databaseTransaction($db, function () use ($db, $studentId, $reference, $windowId): void {
         lockPickupStudent($db, $studentId);
         lockStudentPickupWindows($db, $studentId, $windowId);
         requireActivePickupActor($db, $studentId, 'student');
@@ -224,6 +218,13 @@ function changeStudentPickup(PDO $db, int $studentId, string $reference, ?int $w
             lockAvailablePickupWindow($db, $windowId);
             $move = $db->prepare('UPDATE pickup_appointments SET window_id = :window WHERE appointment_id = :appointment');
             $move->execute(['window' => $windowId, 'appointment' => $appointment['appointment_id']]);
+            $window = $db->prepare('SELECT pickup_date, start_time, end_time FROM pickup_windows WHERE window_id = :window');
+            $window->execute(['window' => $windowId]);
+            $times = $window->fetch();
+            notifyStudent($db, $studentId, 'APPOINTMENT_RESCHEDULED', 'Pickup Appointment Rescheduled',
+                "Pickup $reference is now on {$times['pickup_date']}, {$times['start_time']}–{$times['end_time']} (Philippine time).",
+                null, (int) $appointment['appointment_id']);
+            recordActivity($db, $studentId, 'APPOINTMENT_RESCHEDULED', $reference, ['previous_window' => $appointment['window_id'], 'window' => $windowId]);
             return;
         }
         $detach = $db->prepare(
@@ -236,6 +237,9 @@ function changeStudentPickup(PDO $db, int $studentId, string $reference, ?int $w
              cancellation_reason = 'Cancelled by student' WHERE appointment_id = :appointment"
         );
         $cancel->execute(['appointment' => $appointment['appointment_id']]);
+        notifyStudent($db, $studentId, 'APPOINTMENT_CANCELLED', 'Pickup Appointment Cancelled',
+            "Pickup $reference was cancelled at your request.", null, (int) $appointment['appointment_id']);
+        recordActivity($db, $studentId, 'APPOINTMENT_CANCELLED', $reference);
     });
 }
 
@@ -248,7 +252,7 @@ function collectPickupDocuments(PDO $db, int $staffId, string $reference, array 
         throw new DomainException('Choose a scheduled visit and at least one document handed to the student.');
     }
 
-    pickupTransaction($db, function () use ($db, $staffId, $reference, $requestIds, $studentId): void {
+    databaseTransaction($db, function () use ($db, $staffId, $reference, $requestIds, $studentId): void {
         lockPickupStudent($db, (int) $studentId);
         lockStudentPickupWindows($db, (int) $studentId);
         requireActivePickupActor($db, $staffId, 'staff');
@@ -264,7 +268,7 @@ function collectPickupDocuments(PDO $db, int $staffId, string $reference, array 
             throw new DomainException('Collection is available during a scheduled visit’s pickup window.');
         }
         $documents = $db->prepare(
-            "SELECT ad.request_id, dr.status FROM appointment_documents ad
+            "SELECT ad.request_id, dr.status, dr.reference_no FROM appointment_documents ad
              JOIN document_requests dr ON dr.request_id = ad.request_id
              WHERE ad.appointment_id = :appointment AND ad.collection_state = 'Attached' FOR UPDATE"
         );
@@ -294,6 +298,7 @@ function collectPickupDocuments(PDO $db, int $staffId, string $reference, array 
             ]);
             if ($collected) {
                 $completeRequest->execute(['staff' => $staffId, 'request' => $document['request_id']]);
+                notifyRequestStatus($db, $document['reference_no'], 'Completed');
             }
         }
         $complete = $db->prepare(
@@ -301,10 +306,11 @@ function collectPickupDocuments(PDO $db, int $staffId, string $reference, array 
              processed_by_staff_id = :staff WHERE appointment_id = :appointment"
         );
         $complete->execute(['staff' => $staffId, 'appointment' => $appointmentId]);
+        recordActivity($db, $staffId, 'APPOINTMENT_COLLECTION_RECORDED', $reference, ['documents_collected' => count($requestIds)]);
     });
 }
 
-function detachCancelledPickupRequest(PDO $db, string $reference): void
+function detachCancelledPickupRequest(PDO $db, string $reference, int $staffId): void
 {
     $detach = $db->prepare(
         "UPDATE appointment_documents ad JOIN document_requests dr ON dr.request_id = ad.request_id
@@ -312,18 +318,29 @@ function detachCancelledPickupRequest(PDO $db, string $reference): void
          WHERE dr.reference_no = :reference AND ad.collection_state = 'Attached'"
     );
     $detach->execute(['reference' => $reference]);
-    $cancel = $db->prepare(
-        "UPDATE pickup_appointments pa
+    $lookup = $db->prepare(
+        "SELECT pa.appointment_id, pa.student_user_id, pa.booking_reference
+         FROM pickup_appointments pa
          JOIN appointment_documents affected ON affected.appointment_id = pa.appointment_id
          JOIN document_requests dr ON dr.request_id = affected.request_id
-         SET pa.appointment_status = 'Cancelled', pa.cancelled_at = NOW(),
-             pa.cancellation_reason = 'All attached document requests were cancelled'
          WHERE dr.reference_no = :reference AND pa.appointment_status = 'Scheduled'
            AND NOT EXISTS (SELECT 1 FROM appointment_documents remaining
                            WHERE remaining.appointment_id = pa.appointment_id AND remaining.collection_state = 'Attached')"
     );
-    $cancel->execute(['reference' => $reference]);
+    $lookup->execute(['reference' => $reference]);
+    $cancel = $db->prepare(
+        "UPDATE pickup_appointments SET appointment_status = 'Cancelled', cancelled_at = NOW(),
+         cancellation_reason = 'All attached document requests were cancelled' WHERE appointment_id = :appointment"
+    );
+    foreach ($lookup->fetchAll() as $appointment) {
+        $cancel->execute(['appointment' => $appointment['appointment_id']]);
+        notifyStudent($db, (int) $appointment['student_user_id'], 'APPOINTMENT_CANCELLED', 'Pickup Appointment Cancelled',
+            "Pickup {$appointment['booking_reference']} was cancelled because all its document requests were cancelled.",
+            null, (int) $appointment['appointment_id']);
+        recordActivity($db, $staffId, 'APPOINTMENT_CANCELLED', $appointment['booking_reference'], ['reason' => 'All documents cancelled']);
+    }
 }
+
 
 function listPickupAppointments(PDO $db, ?int $studentId, string $status, string $search, int $page): array
 {

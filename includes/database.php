@@ -22,3 +22,19 @@ function connectDatabase(): PDO
     $connection->exec("SET time_zone = '+08:00'");
     return $connection;
 }
+
+function databaseTransaction(PDO $db, callable $operation): mixed
+{
+    $db->exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+    $db->beginTransaction();
+    try {
+        $result = $operation();
+        $db->commit();
+        return $result;
+    } catch (Throwable $exception) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $exception;
+    }
+}

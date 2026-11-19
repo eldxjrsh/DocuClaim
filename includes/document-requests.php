@@ -44,59 +44,65 @@ function submitDocumentRequest(PDO $db, int $studentId, array $details, array $c
         }
     }
 
-    $reference = 'REQ-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(8)));
-    $insert = $db->prepare(
-        "INSERT INTO document_requests
-             (reference_no, student_user_id, doc_type_id, purpose, academic_year, academic_term, student_note)
-         SELECT :reference, u.user_id, dt.doc_type_id, :purpose, :year, :term, :note
-         FROM users u JOIN roles r ON r.role_id = u.role_id
-         JOIN document_types dt ON dt.doc_type_id = :document AND dt.is_active = 1
-         WHERE u.user_id = :student AND r.role_slug = 'student'
-           AND u.account_status = 'Active' AND u.is_activated = 1"
-    );
-    try {
-        $insert->execute([
-            'reference' => $reference,
-            'student' => $studentId,
-            'document' => $details['doc_type_id'],
-            'purpose' => $details['purpose'],
-            'year' => $year,
-            'term' => $term,
-            'note' => $details['student_note'] === '' ? null : $details['student_note'],
-        ]);
-    } catch (PDOException $exception) {
-        if (($exception->errorInfo[1] ?? null) === 1062
-            && str_contains($exception->errorInfo[2] ?? '', 'uq_doc_requests_exclusivity')) {
-            throw new DomainException('You already have an active request for this document type.');
+    return databaseTransaction($db, function () use ($db, $studentId, $details, $year, $term): string {
+        $reference = 'REQ-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(8)));
+        $insert = $db->prepare(
+            "INSERT INTO document_requests
+                 (reference_no, student_user_id, doc_type_id, purpose, academic_year, academic_term, student_note)
+             SELECT :reference, u.user_id, dt.doc_type_id, :purpose, :year, :term, :note
+             FROM users u JOIN roles r ON r.role_id = u.role_id
+             JOIN document_types dt ON dt.doc_type_id = :document AND dt.is_active = 1
+             WHERE u.user_id = :student AND r.role_slug = 'student'
+               AND u.account_status = 'Active' AND u.is_activated = 1"
+        );
+        try {
+            $insert->execute([
+                'reference' => $reference,
+                'student' => $studentId,
+                'document' => $details['doc_type_id'],
+                'purpose' => $details['purpose'],
+                'year' => $year,
+                'term' => $term,
+                'note' => $details['student_note'] === '' ? null : $details['student_note'],
+            ]);
+        } catch (PDOException $exception) {
+            if (($exception->errorInfo[1] ?? null) === 1062
+                && str_contains($exception->errorInfo[2] ?? '', 'uq_doc_requests_exclusivity')) {
+                throw new DomainException('You already have an active request for this document type.');
+            }
+            throw $exception;
         }
-        throw $exception;
-    }
 
-    if ($insert->rowCount() !== 1) {
-        throw new DomainException('This document or student account is unavailable for requests.');
-    }
-    return $reference;
+        if ($insert->rowCount() !== 1) {
+            throw new DomainException('This document or student account is unavailable for requests.');
+        }
+        recordActivity($db, $studentId, 'DOCUMENT_REQUEST_SUBMITTED', $reference);
+        return $reference;
+    });
 }
 
 function cancelStudentRequest(PDO $db, int $studentId, string $reference): void
 {
-    $update = $db->prepare(
-        "UPDATE document_requests dr
-         JOIN users u ON u.user_id = dr.student_user_id
-         JOIN roles r ON r.role_id = u.role_id
-         SET dr.status = 'Cancelled', dr.cancelled_by_role = 'Student'
-         WHERE dr.reference_no = :reference AND dr.student_user_id = :student AND dr.status = 'Pending Review'
-           AND r.role_slug = 'student' AND u.account_status = 'Active' AND u.is_activated = 1"
-    );
-    $update->execute(['reference' => $reference, 'student' => $studentId]);
-    if ($update->rowCount() !== 1) {
-        throw new DomainException('Only your own requests awaiting review can be cancelled.');
-    }
+    databaseTransaction($db, function () use ($db, $studentId, $reference): void {
+        $update = $db->prepare(
+            "UPDATE document_requests dr
+             JOIN users u ON u.user_id = dr.student_user_id
+             JOIN roles r ON r.role_id = u.role_id
+             SET dr.status = 'Cancelled', dr.cancelled_by_role = 'Student'
+             WHERE dr.reference_no = :reference AND dr.student_user_id = :student AND dr.status = 'Pending Review'
+               AND r.role_slug = 'student' AND u.account_status = 'Active' AND u.is_activated = 1"
+        );
+        $update->execute(['reference' => $reference, 'student' => $studentId]);
+        if ($update->rowCount() !== 1) {
+            throw new DomainException('Only your own requests awaiting review can be cancelled.');
+        }
+        recordActivity($db, $studentId, 'REQUEST_CANCELLED_BY_STUDENT', $reference);
+    });
 }
 
 function reviewDocumentRequest(PDO $db, int $staffId, string $reference, string $expected, string $action, string $reason): void
 {
-    pickupTransaction($db, function () use ($db, $staffId, $reference, $expected, $action, $reason): void {
+    databaseTransaction($db, function () use ($db, $staffId, $reference, $expected, $action, $reason): void {
         $lookup = $db->prepare('SELECT student_user_id FROM document_requests WHERE reference_no = :reference');
         $lookup->execute(['reference' => $reference]);
         $studentId = $lookup->fetchColumn();
@@ -149,8 +155,10 @@ function reviewDocumentRequest(PDO $db, int $staffId, string $reference, string 
         if ($update->rowCount() !== 1) {
             throw new DomainException('The request has changed or is unavailable. Review its current status and try again.');
         }
+        recordActivity($db, $staffId, 'REQUEST_STATUS_CHANGED', $reference, ['previous_status' => $expected, 'status' => $next]);
+        notifyRequestStatus($db, $reference, $next, $action === 'decline' ? $reason : null);
         if ($next === 'Cancelled') {
-            detachCancelledPickupRequest($db, $reference);
+            detachCancelledPickupRequest($db, $reference, $staffId);
         }
     });
 }

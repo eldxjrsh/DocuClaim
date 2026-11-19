@@ -23,7 +23,7 @@ try {
     }
 
     if ($user['role_slug'] === 'admin') {
-        redirectTo('pickups.php');
+        redirectTo('admin.php');
     }
 
     $staff = $user['role_slug'] === 'staff';

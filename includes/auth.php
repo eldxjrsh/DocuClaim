@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/session.php';
+require_once __DIR__ . '/activity.php';
 
 const LOGIN_WINDOW_MINUTES = 15;
 const LOGIN_ACCOUNT_LIMIT = 5;
@@ -45,7 +46,10 @@ function signIn(PDO $db, string $identifier, string $password, string $ip): bool
         'INSERT INTO login_attempts (identifier_number, ip_address, is_successful)
          VALUES (:identifier, :ip, :successful)'
     );
-    $record->execute(['identifier' => $identifier, 'ip' => $ip, 'successful' => (int) $allowed]);
+    databaseTransaction($db, function () use ($db, $record, $identifier, $ip, $allowed, $user): void {
+        $record->execute(['identifier' => $identifier, 'ip' => $ip, 'successful' => (int) $allowed]);
+        recordActivity($db, $user ? (int) $user['user_id'] : null, $allowed ? 'LOGIN_SUCCESS' : 'LOGIN_FAILED', $identifier);
+    });
 
     if (!$allowed) {
         return false;

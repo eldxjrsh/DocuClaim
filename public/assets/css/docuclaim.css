@@ -369,3 +369,65 @@ h1 + .dc-account-form {
 #pickup-feedback > p {
     margin-top: 1rem;
 }
+
+.dc-admin-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1.25rem;
+    margin-block: 1.25rem;
+}
+
+.dc-admin-tabs a[aria-current="page"] {
+    font-weight: 700;
+    text-decoration-thickness: 2px;
+}
+
+.dc-admin-content,
+.dc-admin-signout {
+    margin-top: 1.5rem;
+}
+
+.dc-table-scroll {
+    overflow-x: auto;
+    margin-top: 0.75rem;
+    border: 1px solid var(--dc-border);
+    border-radius: 0.5rem;
+}
+
+.dc-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--dc-surface);
+}
+
+.dc-table th,
+.dc-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--dc-border);
+    text-align: left;
+}
+
+.dc-table thead {
+    background: #eff6ff;
+}
+
+.dc-audit-details {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.4rem 1rem;
+    margin: 0;
+}
+
+.dc-audit-details dt {
+    font-weight: 600;
+}
+
+.dc-audit-details dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.dc-request-actions button {
+    font: inherit;
+    cursor: pointer;
+}

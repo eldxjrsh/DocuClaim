@@ -8,6 +8,7 @@ if (PHP_SAPI !== 'cli') {
 
 require_once dirname(__DIR__) . '/includes/database.php';
 require_once dirname(__DIR__) . '/includes/password.php';
+require_once dirname(__DIR__) . '/includes/activity.php';
 
 if ($argc !== 4 || stream_isatty(STDIN)) {
     fwrite(STDERR, "Usage: php scripts/create-admin.php EMPLOYEE_ID FIRST_NAME LAST_NAME\n");
@@ -29,21 +30,25 @@ if (!preg_match('/\A[A-Z0-9-]{4,30}\z/', $identifier)
 }
 
 try {
-    $statement = connectDatabase()->prepare(
-        "INSERT INTO users
-             (role_id, identifier_number, first_name, last_name, password_hash, account_status, is_activated, activated_at)
-         SELECT role_id, :identifier, :first_name, :last_name, :hash, 'Active', 1, NOW()
-         FROM roles WHERE role_slug = 'admin'"
-    );
-    $statement->execute([
-        'identifier' => $identifier,
-        'first_name' => $firstName,
-        'last_name' => $lastName,
-        'hash' => hashPassword($password),
-    ]);
-    if ($statement->rowCount() !== 1) {
-        throw new RuntimeException('Missing admin role.');
-    }
+    $db = connectDatabase();
+    databaseTransaction($db, function () use ($db, $identifier, $firstName, $lastName, $password): void {
+        $statement = $db->prepare(
+            "INSERT INTO users
+                 (role_id, identifier_number, first_name, last_name, password_hash, account_status, is_activated, activated_at)
+             SELECT role_id, :identifier, :first_name, :last_name, :hash, 'Active', 1, NOW()
+             FROM roles WHERE role_slug = 'admin'"
+        );
+        $statement->execute([
+            'identifier' => $identifier,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'hash' => hashPassword($password),
+        ]);
+        if ($statement->rowCount() !== 1) {
+            throw new RuntimeException('Missing admin role.');
+        }
+        recordActivity($db, null, 'ADMIN_ACCOUNT_CREATED', $db->lastInsertId(), ['identifier' => $identifier]);
+    });
     fwrite(STDOUT, "Administrator account created.\n");
 } catch (RuntimeException $exception) {
     fwrite(STDERR, "Could not create the administrator account. Check the employee ID and database setup.\n");

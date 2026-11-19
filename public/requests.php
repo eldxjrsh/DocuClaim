@@ -39,7 +39,7 @@ try {
         redirectTo('login.php');
     }
     if ($user['role_slug'] === 'admin') {
-        redirectTo('pickups.php');
+        redirectTo('admin.php');
     }
 
     $userId = (int) $user['user_id'];

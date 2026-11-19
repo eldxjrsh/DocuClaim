@@ -24,6 +24,10 @@ function escape(string $value): string
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <a href="account.php"<?= $pageTitle === 'Account' ? ' aria-current="page"' : '' ?>>Account</a>
                     <a href="pickups.php"<?= in_array($pageTitle, ['Pickup Windows', 'Pickup Visits', 'My Pickups'], true) ? ' aria-current="page"' : '' ?>>Pickups</a>
+                    <a href="notifications.php"<?= $pageTitle === 'Notifications' ? ' aria-current="page"' : '' ?>>Notifications</a>
+                    <?php if (($user['role_slug'] ?? null) === 'admin'): ?>
+                        <a href="admin.php"<?= $pageTitle === 'Administration' ? ' aria-current="page"' : '' ?>>Administration</a>
+                    <?php endif; ?>
                 <?php else: ?>
                     <a href="register.php"<?= $pageTitle === 'Student Registration' ? ' aria-current="page"' : '' ?>>Student Registration</a>
                     <a href="login.php"<?= $pageTitle === 'Sign In' ? ' aria-current="page"' : '' ?>>Sign In</a>

@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/activity.php';
+
 function issueActivationSlip(PDO $db, int $staffId, string $identifier): ?array
 {
     $db->beginTransaction();
@@ -42,6 +44,7 @@ function issueActivationSlip(PDO $db, int $staffId, string $identifier): ?array
             'identifier' => $identifier,
             'name' => $student['first_name'] . ' ' . $student['last_name'],
         ];
+        recordActivity($db, $staffId, 'ACTIVATION_CODE_GENERATED', $student['user_id'], ['identifier' => $identifier]);
         $db->commit();
         return $slip;
     } catch (Throwable $exception) {
@@ -80,6 +83,7 @@ function activateStudent(PDO $db, int $studentId, string $code): bool
             return false;
         }
 
+        recordActivity($db, $studentId, 'ACCOUNT_ACTIVATED', $studentId);
         $db->commit();
         return true;
     } catch (Throwable $exception) {
